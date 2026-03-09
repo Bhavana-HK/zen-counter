@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>108 Mantra Counter</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #050507;
+      color: #e2e8f0;
+      touch-action: none;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+      user-select: none;
+      transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .flash-active {
+      background-color: #1a1a2e;
+    }
+
+    .progress-ring {
+      transition: stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+
+    .counter-container {
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .scale-up {
+      transform: scale(1.03);
+    }
+
+    @keyframes pulse-gold {
+      0% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 0px #fbbf24);
+      }
+
+      50% {
+        transform: scale(1.02);
+        filter: drop-shadow(0 0 15px #fbbf24);
+        opacity: 0.8;
+      }
+
+      100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 0px #fbbf24);
+      }
+    }
+
+    .goal-reached {
+      animation: pulse-gold 3s infinite;
+      color: #fbbf24;
+    }
+
+    .cooldown-active {
+      opacity: 0.4;
+      filter: blur(1px);
+      transition: all 0.5s ease;
+    }
+  </style>
+</head>
+
+<body class="flex flex-col items-center justify-between min-h-screen py-12">
+
+  <!-- Top Info -->
+  <div class="text-center z-10">
+    <h1 id="status" class="text-indigo-300/60 font-medium tracking-[0.2em] uppercase text-xs mb-2">Meditation in
+      Progress</h1>
+    <p id="sub-status" class="text-slate-600 text-[10px] uppercase tracking-widest">Procedural Zen Audio</p>
+  </div>
+
+  <!-- Central Counter Area -->
+  <div id="main-tap-area" class="h-[60vh] w-screen flex items-center justify-center relative cursor-pointer">
+    <div id="visual-wrapper" class="counter-container relative flex items-center justify-center pointer-events-none">
+      <svg class="w-72 h-72 md:w-96 md:h-96">
+        <circle class="text-slate-900/40" stroke-width="4" stroke="currentColor" fill="transparent" r="140" cx="50%"
+          cy="50%" />
+        <circle id="progress-bar" class="text-indigo-500/40 progress-ring" stroke-width="4" stroke-dasharray="880"
+          stroke-dashoffset="880" stroke-linecap="round" stroke="currentColor" fill="transparent" r="140" cx="50%"
+          cy="50%" />
+      </svg>
+
+      <div class="absolute flex flex-col items-center">
+        <span id="count" class="text-9xl font-extralight tracking-tighter opacity-80">0</span>
+        <span class="text-slate-700 text-sm font-light mt-4 tracking-[0.3em]">/ 108</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Controls -->
+  <div class="flex flex-col items-center gap-6 z-10">
+    <button id="reset-btn"
+      class="px-8 py-2 bg-transparent border border-slate-800 text-slate-600 rounded-full text-[10px] tracking-widest uppercase hover:text-slate-400 transition-colors">
+      Reset Session
+    </button>
+  </div>
+
+  <script>
+    let audioCtx;
+    let count = 0;
+    let lastIncrementTime = 0;
+    const cooldownMs = 1500;
+    const target = 108;
+    const circumference = 880;
+
+    const countEl = document.getElementById('count');
+    const progressBar = document.getElementById('progress-bar');
+    const resetBtn = document.getElementById('reset-btn');
+    const statusEl = document.getElementById('status');
+    const subStatusEl = document.getElementById('sub-status');
+    const tapArea = document.getElementById('main-tap-area');
+    const visualWrapper = document.getElementById('visual-wrapper');
+
+    // Initialize state from LocalStorage
+    function initLocalStorage() {
+      const savedCount = localStorage.getItem('zen_mantra_count');
+      if (savedCount !== null) {
+        count = parseInt(savedCount, 10);
+        updateVisuals();
+      }
+    }
+
+    function saveToLocalStorage() {
+      localStorage.setItem('zen_mantra_count', count.toString());
+    }
+
+    function updateVisuals() {
+      countEl.innerText = count;
+      const offset = circumference - (count / target) * circumference;
+      progressBar.style.strokeDashoffset = offset;
+
+      if (count === target) {
+        statusEl.innerText = "Completion";
+        subStatusEl.innerText = "Deep Stillness";
+        countEl.classList.add('goal-reached');
+      } else {
+        statusEl.innerText = "Meditation in Progress";
+        subStatusEl.innerText = "Procedural Zen Audio";
+        countEl.classList.remove('goal-reached');
+      }
+    }
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playProceduralGong() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+
+      const masterGain = audioCtx.createGain();
+      masterGain.gain.setValueAtTime(0, now);
+      masterGain.gain.linearRampToValueAtTime(0.4, now + 0.02);
+      masterGain.gain.exponentialRampToValueAtTime(0.001, now + 3);
+      masterGain.connect(audioCtx.destination);
+
+      const harmonics = [110, 221.5, 442, 665, 880];
+      harmonics.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(0.25 / (i + 1), now + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, now + (3 - i * 0.4));
+        osc.connect(g);
+        g.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 3);
+      });
+    }
+
+    function playFinalDeepBong() {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+
+      const masterGain = audioCtx.createGain();
+      masterGain.gain.setValueAtTime(0, now);
+      masterGain.gain.linearRampToValueAtTime(0.6, now + 0.05);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 8);
+      masterGain.connect(audioCtx.destination);
+
+      const deepHarmonics = [55, 110, 165, 220, 330, 440];
+      deepHarmonics.forEach((freq, i) => {
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = i < 2 ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq * 0.98, now + 6);
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(0.3 / (i + 1), now + 0.1);
+        g.gain.exponentialRampToValueAtTime(0.001, now + (8 - i));
+        osc.connect(g);
+        g.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 8);
+      });
+
+      const noise = audioCtx.createBufferSource();
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      noise.buffer = buffer;
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(100, now);
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.1, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(masterGain);
+      noise.start(now);
+    }
+
+    function triggerFlash(isFinal) {
+      document.body.classList.add('flash-active');
+      visualWrapper.classList.add('scale-up');
+
+      setTimeout(() => {
+        document.body.classList.remove('flash-active');
+        visualWrapper.classList.remove('scale-up');
+      }, isFinal ? 1000 : 400);
+    }
+
+    function handleIncrement() {
+      initAudio(); // Initialize audio context on first interaction
+
+      const now = Date.now();
+      if (now - lastIncrementTime < cooldownMs) return;
+
+      if (count < target) {
+        count++;
+        lastIncrementTime = now;
+        saveToLocalStorage();
+
+        const isFinal = count === target;
+        triggerFlash(isFinal);
+
+        if (isFinal) {
+          playFinalDeepBong();
+        } else {
+          playProceduralGong();
+        }
+
+        updateVisuals();
+
+        visualWrapper.classList.add('cooldown-active');
+        setTimeout(() => visualWrapper.classList.remove('cooldown-active'), cooldownMs);
+
+        if (navigator.vibrate) {
+          isFinal ? navigator.vibrate([100, 50, 100]) : navigator.vibrate(20);
+        }
+      }
+    }
+
+    tapArea.addEventListener('touchstart', (e) => { e.preventDefault(); handleIncrement(); }, { passive: false });
+    tapArea.addEventListener('mousedown', (e) => { e.preventDefault(); handleIncrement(); });
+    window.addEventListener('keydown', (e) => { if (e.key === "ArrowUp" || e.key === " ") handleIncrement(); });
+
+    resetBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm("Reset current session progress?")) {
+        count = 0;
+        lastIncrementTime = 0;
+        saveToLocalStorage();
+        updateVisuals();
+      }
+    });
+
+    // Initialize on load
+    initLocalStorage();
+  </script>
+</body>
+
+</html>
